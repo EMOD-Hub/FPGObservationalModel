@@ -30,7 +30,7 @@ jobs:
       - name: Install packages
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install .[dev] --index-url=https://packages.idmod.org/api/pypi/pypi-production/simple
+          python3 -m pip install .[dev] --extra-index-url=https://packages.idmod.org/api/pypi/pypi-production/simple
       - name: Run unit tests
         run: |
           cd tests
