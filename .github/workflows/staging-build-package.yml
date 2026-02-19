@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install .[packaging] --extra-index-url=https://packages.idmod.org/api/pypi/pypi-production/simple
+          python3 -m pip install .[packaging] --index-url=https://packages.idmod.org/api/pypi/pypi-production/simple --extra-index-url=https://pypi.org/simple
       - name: Build and publish
         env:
           TWINE_REPOSITORY_URL: https://packages.idmod.org/api/pypi/idm-pypi-staging/
