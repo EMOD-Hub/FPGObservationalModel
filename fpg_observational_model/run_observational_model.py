@@ -28,15 +28,15 @@ def get_default_config():
         },
         'intervention_start_month': 29, # Provide month where an intervention is applied. Currently any sampling pre/post intervention for a single intervention is supported. 
         'sampling_configs': {
-            # 'random': {
-            #     'method': 'random',
-            #     'n_samples_year': 100,
-            #     'replicates': 2,
-            #     'method_params': {
-            #         'population_proportions': [1, 0], # Use to sample from the source or sink only, equally, etc. Within population comparisons of genetic metrics can be specified below - just make sure to total number of samples per year * proportion reflects the numbers you want per population.
-            #         'monogenomic_proportion': False, # Set to False if sampling randomly 
-            #         'equal_monthly': False}
-            # },
+            'test': {
+                'method': 'random',
+                'n_samples_year': 100,
+                'replicates': 2,
+                'method_params': {
+                    'population_proportions': [1, 0], # Use to sample from the source or sink only, equally, etc. Within population comparisons of genetic metrics can be specified below - just make sure to total number of samples per year * proportion reflects the numbers you want per population.
+                    'monogenomic_proportion': False, # Set to False if sampling randomly 
+                    'equal_monthly': False}
+            },
             # 'seasonal': {
             #     'method': 'seasonal',
             #     'n_samples_year': 100,
