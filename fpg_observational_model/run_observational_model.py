@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fpg_observational_model.unified_sampling import run_sampling_model
-from fpg_observational_model.unified_metric_calculations import register_matrix, run_time_summaries, generate_het_barcode
+from fpg_observational_model.unified_metric_calculations import assign_unique_genome_ids, register_matrix, run_time_summaries, generate_het_barcode
 
 
 #####################################################################################
@@ -412,9 +412,7 @@ def run_observational_model(
         else:
             print(f"Warning: {root_matrix_path} not found, IBD calculations will be skipped")
 
-    if config['metrics']['identity_by_state'] or config['metrics'].get('heterozygosity', True) or config['metrics'][
-        'rh']:
-        user_specified_ibx.append('ibs')
+    if config['metrics'].get('heterozygosity', True):
         genotype_matrix_path = f'{emod_output_path}/variants.npy'
      
         if os.path.exists(genotype_matrix_path):
@@ -423,19 +421,25 @@ def run_observational_model(
                 ibs_matrix = ibs_matrix[:, variant_indices]
         else:
             print(f"Error: {genotype_matrix_path} not found. Loading test data.")
-            ibs_matrix = np.load("../test_data/variants.npy", mmap_mode='r')
+            ibs_matrix = np.load("../test_data/variants.npy", mmap_mode='r')    
         register_matrix('ibs_matrix', ibs_matrix)
+
+        if config['metrics']['identity_by_state'] or config['metrics'][
+        'rh']:
+            user_specified_ibx.append('ibs')
 
     if config['metrics'].get('heterozygosity', True) and ibs_matrix is not None:
         # Generate barcode with Ns for heterozygosity calculations
         sample_df['original_nid'] = sample_df['original_nid'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
         sample_df[['genotype_coi', 'barcode_with_Ns', 'heterozygosity']] = sample_df.apply(lambda row: generate_het_barcode(ibs_matrix, row['original_nid']), axis=1, result_type='expand')
 
+        sample_df = assign_unique_genome_ids(ibs_matrix, sample_df, genome_id_col='original_nid', output_col='genotype_nid')
+
     # Run metric calculations
     all_summaries, all_infection_ibx, all_ibx_dist_dict = run_time_summaries(
-        sample_df,
-        subpop_config=config['subpopulation_comparisons'],
-        user_ibx_categories=user_specified_ibx
+         sample_df,
+         subpop_config=config['subpopulation_comparisons'],
+         user_ibx_categories=user_specified_ibx
     )
 
     # Save outputs
