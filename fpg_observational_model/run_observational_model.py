@@ -28,7 +28,7 @@ def get_default_config():
         },
         'intervention_start_month': 29, # Provide month where an intervention is applied. Currently any sampling pre/post intervention for a single intervention is supported. 
         'sampling_configs': {
-            'test': {
+            'random': {
                 'method': 'random',
                 'n_samples_year': 100,
                 'replicates': 2,
@@ -304,14 +304,13 @@ def run_observational_model(
         return unknown_keys
 
     # Helper function to deep merge dictionaries
-    def deep_merge(default_dict, override_dict):
-        """Recursively merge override_dict into default_dict, preserving defaults for missing keys."""
-        result = default_dict.copy()
-        for key, value in override_dict.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = deep_merge(result[key], value)
+    def deep_merge(base, override):
+        result = base.copy()
+        for k, v in override.items():
+            if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+                result[k] = deep_merge(result[k], v)  # recurse
             else:
-                result[key] = value
+                result[k] = v
         return result
 
     # Start with default config
