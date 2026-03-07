@@ -72,6 +72,7 @@ try:
         process_nested_fws,
         run_time_summaries,
         update_ibx_index,
+        assign_unique_genome_ids,
     )
 
     METRICS_IMPORTED = True
@@ -92,8 +93,7 @@ except ImportError as e:
 try:
     from fpg_observational_model.run_observational_model import (
         run_observational_model,
-        get_default_config,
-        process_file
+        get_default_config
         )
     RUN_MODEL_IMPORTED = True
 except ImportError as e:
@@ -505,7 +505,7 @@ class TestSamplingFunctions(unittest.TestCase):
                 self.assertTrue((age_bin_counts['count'] == 1).all())
 
 
-@unittest.skipIf(not METRICS_IMPORTED, "unified_metric_calculations not available")
+@unittest.skipIf(not SAMPLING_IMPORTED, "unified_sampling not available")
 class TestInterventionTiming(unittest.TestCase):
     """Test intervention start month handling"""
 
@@ -560,7 +560,7 @@ class TestInterventionTiming(unittest.TestCase):
         self.assertNotEqual(original_group, intervention_group)
 
 
-@unittest.skipIf(not METRICS_IMPORTED, "unified_metric_calculations not available")
+@unittest.skipIf(not SAMPLING_IMPORTED, "unified_sampling not available")
 class TestSubsampleFilter(unittest.TestCase):
     """Test extraction of sampled infections from dataframe"""
     
@@ -622,6 +622,142 @@ class TestNestedComparisonDictionary(unittest.TestCase):
             
             self.assertEqual(subgroup_dict, result[subgroup])
   
+##############################################################################
+# TEST CLASS - UNIQUE GENOME ID ASSIGNMENT - Using shared TEST_DATA
+###############################################################################
+@unittest.skipIf(not METRICS_IMPORTED, "assign_unique_genome_ids not available")
+class TestAssignUniqueGenomeIds(unittest.TestCase):
+    """
+    Test assign_unique_genome_ids using SharedTestData.genotype_matrix (16 x 6).
+
+    Confirmed duplicate rows:
+      Group A: rows  0, 2, 3, 15  →  [0, 1, 0, 1, 0, 1]
+      Group B: rows  1, 5, 6      →  [1, 0, 1, 0, 1, 0]
+      Group C: rows  4, 10        →  [1, 1, 0, 0, 1, 1]
+      All other rows are unique.
+    """
+
+    def setUp(self):
+        self.matrix = TEST_DATA.get_genotype_matrix()
+
+        # One representative per duplicate group plus one unique row (9)
+        self.df = pd.DataFrame({
+            'sample_id':   ['a',  'b',  'c',  'd',  'e',  'f',  'g',  'h',  'i'],
+            # Group A       0     2     3     15    |  Group B  1     5   |  Group C  4    10  | unique
+            'original_nid': [[0], [2], [3], [15],      [1], [5],        [4], [10],       [9]],
+        })
+
+    # ── Core deduplication logic ──────────────────────────────────────────────
+
+    def test_group_a_all_share_same_id(self):
+        """Rows 0, 2, 3, 15 are identical — all four must map to the same unique_id."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        uid = lambda sid: result.loc[result['sample_id'] == sid, 'unique_genome_id'].iloc[0][0]
+
+        self.assertEqual(uid('a'), uid('b'))   # row 0 == row 2
+        self.assertEqual(uid('b'), uid('c'))   # row 2 == row 3
+        self.assertEqual(uid('c'), uid('d'))   # row 3 == row 15
+
+    def test_group_b_shares_same_id(self):
+        """Rows 1 and 5 are identical — must share a unique_id."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        uid = lambda sid: result.loc[result['sample_id'] == sid, 'unique_genome_id'].iloc[0][0]
+
+        self.assertEqual(uid('e'), uid('f'))   # row 1 == row 5
+
+    def test_group_c_shares_same_id(self):
+        """Rows 4 and 10 are identical — must share a unique_id."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        uid = lambda sid: result.loc[result['sample_id'] == sid, 'unique_genome_id'].iloc[0][0]
+
+        self.assertEqual(uid('g'), uid('h'))   # row 4 == row 10
+
+    def test_different_groups_get_different_ids(self):
+        """Groups A, B, C are distinct rows — they must not share a unique_id."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        uid = lambda sid: result.loc[result['sample_id'] == sid, 'unique_genome_id'].iloc[0][0]
+
+        self.assertNotEqual(uid('a'), uid('e'))  # Group A != Group B
+        self.assertNotEqual(uid('a'), uid('g'))  # Group A != Group C
+        self.assertNotEqual(uid('e'), uid('g'))  # Group B != Group C
+
+    def test_unique_row_gets_distinct_id(self):
+        """Row 9 is unique — its id must not match any duplicate group."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        uid = lambda sid: result.loc[result['sample_id'] == sid, 'unique_genome_id'].iloc[0][0]
+
+        self.assertNotEqual(uid('i'), uid('a'))  # unique != Group A
+        self.assertNotEqual(uid('i'), uid('e'))  # unique != Group B
+        self.assertNotEqual(uid('i'), uid('g'))  # unique != Group C
+
+    def test_number_of_distinct_unique_ids(self):
+        """9 genome_ids across 3 duplicate groups + 1 unique row → exactly 4 distinct unique_ids."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        n_distinct = result['unique_genome_id'].apply(lambda x: x[0]).nunique()
+        self.assertEqual(n_distinct, 4)
+
+    # ── Output format ─────────────────────────────────────────────────────────
+
+    def test_output_col_is_single_element_list(self):
+        """Every value in unique_genome_id must be a single-element list."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        self.assertTrue(
+            all(isinstance(v, list) and len(v) == 1 for v in result['unique_genome_id'])
+        )
+
+    def test_output_values_are_plain_python_ints(self):
+        """unique_genome_id values must be plain Python ints, not np.int64."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        for v in result['unique_genome_id']:
+            self.assertIsInstance(v[0], int)
+            self.assertNotIsInstance(v[0], np.integer)
+
+    def test_row_count_preserved(self):
+        """Output DataFrame must have the same number of rows as input."""
+        result = assign_unique_genome_ids(self.matrix, self.df)
+        self.assertEqual(len(result), len(self.df))
+
+    def test_input_df_not_mutated(self):
+        """Original DataFrame must not be modified in-place."""
+        original_cols = list(self.df.columns)
+        assign_unique_genome_ids(self.matrix, self.df)
+        self.assertEqual(list(self.df.columns), original_cols)
+
+    # ── Input validation ──────────────────────────────────────────────────────
+
+    def test_out_of_bounds_genome_id_raises(self):
+        """genome_id beyond matrix row count must raise IndexError."""
+        bad_df = pd.DataFrame({'original_nid': [[999]]})
+        with self.assertRaises(IndexError):
+            assign_unique_genome_ids(self.matrix, bad_df)
+
+    def test_negative_genome_id_raises(self):
+        """Negative genome_id must raise IndexError."""
+        bad_df = pd.DataFrame({'original_nid': [[-1]]})
+        with self.assertRaises(IndexError):
+            assign_unique_genome_ids(self.matrix, bad_df)
+
+    def test_1d_matrix_raises(self):
+        """Passing a 1D array must raise ValueError."""
+        with self.assertRaises(ValueError):
+            assign_unique_genome_ids(np.array([1, 2, 3]), self.df)
+
+    def test_entirely_unique_matrix(self):
+        """All unique rows → every genome_id gets a distinct unique_id."""
+        unique_matrix = np.eye(5, dtype=np.int8)
+        df = pd.DataFrame({'original_nid': [[0], [1], [2], [3], [4]]})
+        result = assign_unique_genome_ids(unique_matrix, df)
+        ids = [v[0] for v in result['unique_genome_id']]
+        self.assertEqual(len(set(ids)), 5)
+
+    def test_entirely_duplicate_matrix(self):
+        """All-zeros matrix → every genome_id collapses to one unique_id."""
+        dup_matrix = np.zeros((5, 6), dtype=np.int8)
+        df = pd.DataFrame({'original_nid': [[0], [1], [2], [3], [4]]})
+        result = assign_unique_genome_ids(dup_matrix, df)
+        ids = [v[0] for v in result['unique_genome_id']]
+        self.assertEqual(len(set(ids)), 1)
+
 
 ###############################################################################
 # NEW TESTS FOR run_observational_model
@@ -1094,10 +1230,10 @@ class TestProcessNestedSummaries(unittest.TestCase):
         self.assertEqual(result['true_coi_mean'].tolist(), [1.333, 2.000, 1.5])
         self.assertEqual(result['effective_coi_poly_count'].tolist(), [1, 2, 1])
         self.assertEqual(result['effective_coi_mean'].tolist(), [1.333, 2.000, 1.250])
-        self.assertEqual(result['all_genomes_total'].tolist(), [4, 6, 5])
-        self.assertEqual(result['all_genomes_unique'].tolist(), [3, 5, 5])
-        self.assertEqual(result['mono_genomes_total'].tolist(), [2, 1, 3])
-        self.assertEqual(result['mono_genomes_unique'].tolist(), [1, 1, 3])
+        self.assertEqual(result['effective_all_genomes_total'].tolist(), [4, 6, 5])
+        self.assertEqual(result['effective_all_genomes_unique'].tolist(), [3, 5, 5])
+        self.assertEqual(result['effective_mono_genomes_total'].tolist(), [2, 1, 3])
+        self.assertEqual(result['effective_mono_genomes_unique'].tolist(), [1, 1, 3])
         self.assertEqual(result['cotransmission_count'].tolist(), [1, 1, 1])
 
 
@@ -1282,13 +1418,13 @@ class TestComprehensiveGroupSummary(unittest.TestCase):
         """Test monogenomic proportion calculation"""
         result = comprehensive_group_summary(self.df)
 
-        self.assertEqual(result['all_genomes_total'], 15)
-        self.assertEqual(result['all_genomes_unique'], 13)
-        self.assertEqual(result['all_genomes_unique_prop'], 0.867)     
+        self.assertEqual(result['effective_all_genomes_total'], 15)
+        self.assertEqual(result['effective_all_genomes_unique'], 13)
+        self.assertEqual(result['effective_all_genomes_unique_prop'], 0.867)     
 
-        self.assertEqual(result['mono_genomes_total'], 6)
-        self.assertEqual(result['mono_genomes_unique'], 5)
-        self.assertEqual(result['mono_genomes_unique_prop'], 0.833)
+        self.assertEqual(result['effective_mono_genomes_total'], 6)
+        self.assertEqual(result['effective_mono_genomes_unique'], 5)
+        self.assertEqual(result['effective_mono_genomes_unique_prop'], 0.833)
 
     def test_cotx_proportion(self):    
         """Test cotransmission proportion calculation"""
