@@ -124,8 +124,8 @@ def comprehensive_group_summary(group):
     effective_coi_stats = _comprehensive_stats(group['effective_coi'], 'effective_coi')
 
     # Genome ID analysis
-    all_genome_stats = _analyze_genome_ids(group['recursive_nid'], "all_genomes")
-    mono_genome_stats = _analyze_genome_ids(group[group['effective_coi'] == 1]['recursive_nid'], "mono_genomes")
+    effective_all_genome_stats = _analyze_genome_ids(group['recursive_nid'], "effective_all_genomes")
+    effective_mono_genome_stats = _analyze_genome_ids(group[group['effective_coi'] == 1]['recursive_nid'], "effective_mono_genomes")
     
     # Cotransmission and superinfection analysis
     poly_series =  group[group['true_coi'] > 1]['cotx']
@@ -136,15 +136,21 @@ def comprehensive_group_summary(group):
         'n_infections': len(group),
         **true_coi_stats,
         **effective_coi_stats,
-        **all_genome_stats,
-        **mono_genome_stats,
+        **effective_all_genome_stats,
+        **effective_mono_genome_stats,
         **cotxn_counts
     })
     
-    if 'genotype_coi' in group.columns:
+    if 'genotype_nid' in group.columns:
         genotype_coi_stats = _comprehensive_stats(group['genotype_coi'], 'genotype_coi')
+        genotype_all_genome_stats = _analyze_genome_ids(group['genotype_nid'], "genotype_all_genomes")
+        genotype_mono_genome_stats = _analyze_genome_ids(group[group['genotype_coi'] == 1]['genotype_nid'], "genotype_mono_genomes")
 
-        result = pd.concat([result, genotype_coi_stats])
+        result = pd.concat([result, pd.Series({
+            **genotype_coi_stats,
+            **genotype_all_genome_stats,
+            **genotype_mono_genome_stats,
+        })])
 
     return result
 
@@ -196,6 +202,58 @@ def _analyze_binary_in_subset(series, prefix):
     return {f'{prefix}_count': count, f'{prefix}_prop': prop}    
 
 
+def assign_unique_genome_ids(
+    matrix: np.ndarray,
+    df: pd.DataFrame,
+    genome_id_col: str = "original_nid",
+    output_col: str = "unique_genome_id") -> pd.DataFrame:
+    """
+    Assigns a unique integer ID to each distinct row in `matrix`, then maps
+    those IDs onto `df` via the genome_ids index column.
+
+    Parameters
+    ----------
+    matrix       : np.ndarray, shape (n, m). Already-loaded numpy array.
+    df           : pd.DataFrame with a column of 0-indexed row positions into matrix.
+    genome_id_col: Column in df containing integer row indices into matrix.
+    output_col   : Name for the new column written to df.
+
+    Returns
+    -------
+    df with a new column `output_col` containing the unique row ID for each genome_id.
+    """
+    if matrix.ndim != 2:
+        raise ValueError(f"Expected 2D matrix, got shape {matrix.shape}")
+
+    # np.unique axis=0 sorts rows and returns an inverse mapping:
+    # inverse[i] is the unique-row ID for matrix row i.
+    # This is fully vectorized — no Python-level row iteration.
+    print(f"Computing unique rows for matrix of shape {matrix.shape}...")
+    _, inverse = np.unique(matrix, axis=0, return_inverse=True)
+    n_unique = inverse.max() + 1
+    print(f"Found {n_unique:,} unique rows out of {matrix.shape[0]:,} total.")
+
+    # Unwrap single-element lists if genome_ids were parsed as e.g. [1732898]
+    raw = df[genome_id_col]
+    if isinstance(raw.iloc[0], (list, np.ndarray)):
+        raw = raw.apply(lambda x: x[0])
+
+    # Validate genome_ids are within bounds
+    ids = raw.to_numpy(dtype=int)
+    out_of_bounds = (ids < 0) | (ids >= matrix.shape[0])
+    if out_of_bounds.any():
+        bad = ids[out_of_bounds]
+        raise IndexError(
+            f"{out_of_bounds.sum()} genome_ids are out of range [0, {matrix.shape[0]-1}]. "
+            f"First few offenders: {bad[:5]}"
+        )
+
+    # Single vectorized lookup — no loops
+    df = df.copy()
+    df[output_col] = [[int(v)] for v in inverse[ids]]
+    return df
+
+
 def _analyze_genome_ids(series, prefix):
     """Analyze genome IDs to get total count, unique count, and proportion."""
     all_genome_ids = []
@@ -205,7 +263,10 @@ def _analyze_genome_ids(series, prefix):
     
     total_genomes  = len(all_genome_ids)
     unique_genomes = len(set(all_genome_ids))
-    unique_prop = round(unique_genomes / total_genomes, 3) if total_genomes > 0 else np.nan
+    if unique_genomes == 1:
+        unique_prop = 0.0
+    else:    
+        unique_prop = round(unique_genomes / total_genomes, 3) if total_genomes > 0 else np.nan
     
     return {
         f'{prefix}_total': total_genomes,
