@@ -39,7 +39,7 @@ dependencies = [
     "openpyxl>=3.0.0",
     "click>=7.0",
     "tqdm>=4.60.0",
-    "tskit==0.3.6.dev4",
+    "idm-tskit==0.3.6.dev4",
 ]
 
 [project.optional-dependencies]
