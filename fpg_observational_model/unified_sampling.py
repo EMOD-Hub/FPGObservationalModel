@@ -6,7 +6,6 @@ import math
 import ast
 from os.path import join, dirname, basename, exists
 from pathlib import Path
-from typing import List
 from ast import literal_eval
 
 
