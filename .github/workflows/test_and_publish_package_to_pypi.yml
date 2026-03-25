@@ -1,0 +1,19 @@
+name: Test and deploy to pypi
+
+
+on:
+  # only allow manual run from the Actions tab, to avoid accidentally pushing to pypi
+  workflow_dispatch:
+
+jobs:
+  run-tests:
+    name: Run tests
+    uses: ./.github/workflows/run_tests.yml
+
+  build-publish-package:
+    name: Push to pypi
+    needs: [run-tests]
+    uses: ./.github/workflows/build_publish_package.yml
+    secrets:
+      PYPI_USERNAME: ${{ secrets.PYPI_USERNAME }}
+      PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
