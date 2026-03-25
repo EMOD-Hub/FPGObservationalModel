@@ -1,4 +1,4 @@
-name: Deploy to Artifactory staging
+name: Deploy to Pypi
 
 on:
   # Only called by other workflows
