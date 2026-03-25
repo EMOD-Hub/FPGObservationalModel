@@ -10,18 +10,18 @@ This repository contains scripts for EMOD's Full Parasite Genetics output to con
 
 ## Environment set-up
 
-This model requires Python 3.9 to be compatible with IDM tskit. To set up the environment.
+This model requires Python 3.13 to be compatible with idm-tskit. To set up the environment.
 
 ~~~
 python3 -m venv fpg_env
 source fpg_env/bin/activate
-pip install -r requirements.txt
+python3 -m pip install .[dev]
 ~~~
 
 Alternatively, IDM prebuilt environments are also available.
 
 ~~~
-python3 -m pip install .[dev]
+python3 -m pip install fpq_observational_model
 ~~~
 
 ## Config Parameters
