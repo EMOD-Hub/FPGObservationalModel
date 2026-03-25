@@ -186,7 +186,7 @@ If updating the repository to run the observational model on COMPs, these are th
 
 3) Actions -> Build and push similarity image. Keep all the same information form COMPs or specify file locations as needed. 
 
-4) Pass the docker/ObsModel_rocky.id to emodpy-malaria files to run with new simulations. 
+4) Pass the docker/ObsModel_ubuntu.id to emodpy-malaria files to run with new simulations. 
 
 
 # Disclaimer

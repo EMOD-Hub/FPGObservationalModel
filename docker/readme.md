@@ -2,7 +2,7 @@
 
 This folder contains configuration files and scripts for building Docker and Singularity containers for the project.
 The containers encapsulate the application environment, in this case, the mpich runtime for EMOD and the 
-fpg_observational_model is pre-installed with all necessary dependencies(Python 3.9, tskit, etc.). 
+fpg_observational_model is pre-installed with all necessary dependencies(Python 3.13, idm-tskit, etc.). 
 
 ## Overview
 
@@ -69,7 +69,7 @@ apptainer build <image-name>.sif <definition-file>.def
 
 1. Using a Linux machine with Singularity/Apptainer installed, navigate to the repo root directory and run:
 ```bash
-apptainer build ObsModel_rocky.sif docker/Singularity.def
+apptainer build ObsModel_ubuntu.sif docker/Singularity.def
 ```
 Replace `apptainer` with `singularity` if you are using an older version of Singularity.
 
@@ -83,7 +83,7 @@ docker run --rm `
   -v /var/run/docker.sock:/var/run/docker.sock `
   -v "${PWD}:/workspace" `
   ghcr.io/apptainer/apptainer:latest `
-  apptainer build /workspace/ObsModel_rocky.sif /workspace/docker/Singularity.def
+  apptainer build /workspace/ObsModel_ubuntu.sif /workspace/docker/Singularity.def
 ```
 In this command:
 - `--rm`: Automatically remove the container when it exits.
@@ -95,10 +95,10 @@ the Docker daemon on the host.
 - `-v "${PWD}:/workspace"`: Mounts the current working directory to `/workspace` inside the container, allowing access 
 to the definition file and output location.
 - `ghcr.io/apptainer/apptainer:latest`: Specifies the Apptainer Docker image to use for building the Singularity image.
-- `apptainer build /workspace/ObsModel_rocky.sif /workspace/docker/Singularity.def`: The command to build the Singularity image, 
+- `apptainer build /workspace/ObsModel_ubuntu.sif /workspace/docker/Singularity.def`: The command to build the Singularity image, 
 specifying the output path and the definition file path.
 
-In both cases, you will get a `ObsModel_rocky.sif` file in the current directory after the build is complete.
+In both cases, you will get a `ObsModel_ubuntu.sif` file in the current directory after the build is complete.
 
 ## Usage Scenarios
 
@@ -106,12 +106,12 @@ In both cases, you will get a `ObsModel_rocky.sif` file in the current directory
 
 If you have access to Comps, you can push your Singularity image as an asset for easy distribution and version control.
 If you don't need to change the image, you can directly use the pre-built Singularity image available on Comps with
-the asset ID stored in ['ObsModel_rocky.id'](ObsModel_rocky.id).
+the asset ID stored in ['ObsModel_ubuntu.id'](ObsModel_ubuntu.id).
 > [!NOTE]
 > You need to install idmtools and idmtools_platform_comps packages in your Python environment and have Comps access
 > to use the script below. Run the following command to install the required packages if you haven't done so:
 > ```bash
-> pip install idmtools idmtools_platform_comps --index-url=https://packages.idmod.org/api/pypi/pypi-production/simple
+> pip install idmtools idmtools_platform_comps
 > ```
 
 Run the `push_singularity.py` script:
@@ -129,7 +129,7 @@ python push_singularity.py -f <path-to-image>
 python push_singularity.py -f <path-to-image> \
   --comps_url https://comps.idmod.org \
   --comps_env Calculon \
-  --os_name rocky
+  --os_name ubuntu
 ```
 
 > [!NOTE]
@@ -137,10 +137,10 @@ python push_singularity.py -f <path-to-image> \
 > large `.sif` files. However, if you already have a tested `.sif` file, you can upload it directly for faster deployment.
 
 > [!IMPORTANT]
-> After successful upload, an asset ID file (e.g., `ObsModel_rocky.id`) will be created. Save this file as it 
+> After successful upload, an asset ID file (e.g., `ObsModel_ubuntu.id`) will be created. Save this file as it 
 > contains the asset ID needed to reference your image in Comps jobs. You can use this asset ID in your emodpy scripts 
 > to run simulations and observational model in the Singularity image on Comps.
-> A pre-built Singularity image is also available on Comps with asset ID stored in ['ObsModel_rocky.id'](ObsModel_rocky.id).
+> A pre-built Singularity image is also available on Comps with asset ID stored in ['ObsModel_ubuntu.id'](ObsModel_ubuntu.id).
 
 ### 2. Running on Slurm Clusters
 
