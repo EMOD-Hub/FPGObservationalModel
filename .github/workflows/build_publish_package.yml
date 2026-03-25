@@ -10,8 +10,8 @@ on:
         required: true
 
 jobs:
-  deploy-emodpy-staging:
-    name: Deploy to staging
+  deploy-pypi:
+    name: Deploy to pypi
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, 'Bump version: ')"
     steps:
@@ -27,7 +27,6 @@ jobs:
           python3 -m pip install .[packaging]
       - name: Build and publish
         env:
-          TWINE_REPOSITORY_URL: https://packages.idmod.org/api/pypi/idm-pypi-staging/
           TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
