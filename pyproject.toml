@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fpg-observational-model"
-version = "1.0.1.dev2"
+version = "1.0.2"
 description = "Observational model for EMOD's Full Parasite Genetics output to convert modeled results into recapitulative sampling for genomic surveillance"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -39,7 +39,7 @@ dependencies = [
     "openpyxl>=3.0.0",
     "click>=7.0",
     "tqdm>=4.60.0",
-    "idm-tskit==0.3.6.dev5",
+    "idm-tskit==0.3.7",
 ]
 
 [project.optional-dependencies]
