@@ -21,7 +21,7 @@ pip install -r requirements.txt
 Alternatively, IDM prebuilt environments are also available.
 
 ~~~
-python3 -m pip install .[dev] --index-url=https://packages.idmod.org/api/pypi/pypi-production/simple
+python3 -m pip install .[dev]
 ~~~
 
 ## Config Parameters
