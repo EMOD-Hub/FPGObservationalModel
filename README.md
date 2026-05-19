@@ -208,7 +208,7 @@ If updating the repository to run the observational model on COMPs, these are th
 4) Pass the docker/ObsModel_rocky.id to emodpy-malaria files to run with new simulations. 
 
 
-# Disclaimer
+## Disclaimer
 
 The code in this repository was developed by IDM and other collaborators to support our
 joint research on flexible agent-based modeling. We've made it publicly available under
