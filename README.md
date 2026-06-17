@@ -2,11 +2,30 @@
 
 Documentation version 1.0 - September 2025
 
-You can find the latest version of this documentation at: https://emod-hub.github.io/FPGObservationalModel/
+You can find the latest version of this documentation at:
+
+https://emod.idmod.org/FPGObservationalModel/
 
 ## Overview 
 
-This repository contains scripts for EMOD's Full Parasite Genetics output to convert modeled results into recapitulative sampling for genomic surveillance. The observational model options allow for curated population sampling and then calculated genetic metrics for user specified combinations of samples, and optionally within epidemioligcally relevant nested populations within a group of samples. More options in sampling and metrics can be edited or expanded to match empirical data analyses. 
+This repository contains scripts for EMOD's Full Parasite Genetics output to convert
+modeled results into recapitulative sampling for genomic surveillance. The observational
+model options allow for curated population sampling and then calculated genetic metrics
+for user specified combinations of samples, and optionally within epidemioligcally
+relevant nested populations within a group of samples. More options in sampling and
+metrics can be edited or expanded to match empirical data analyses. 
+
+## Project status
+
+EMOD-Hub projects are provided as open source software under the MIT License for
+community use, research, and development.
+
+**Unless otherwise noted, these projects are no longer actively maintained or supported
+by IDM or the Gates Foundation.**
+
+Community contributions are welcome, and trusted collaborators may review and
+merge pull requests, but no guarantees are made regarding support, pull request
+review, security response, maintenance, or release timelines.
 
 ## Environment set-up
 
@@ -256,8 +275,12 @@ Use this workflow when you change the ObsModel Python package itself and want th
 5. Use the new image's asset id in your EMOD tasks as described in section 1.
 
 
-# Disclaimer
-The code in this repository was developed by IDM and other collaborators to support our joint research on flexible agent-based modeling.
- We've made it publicly available under the MIT License to provide others with a better understanding of our research and an opportunity to build upon it for 
- their own work. We make no representations that the code works as intended or that we will provide support, address issues that are found, or accept pull requests.
- You are welcome to create your own fork and modify the code to suit your own modeling needs as permitted under the MIT License.
+## Disclaimer
+
+The code in this repository was developed by IDM and other collaborators to support our
+joint research on flexible agent-based modeling. We've made it publicly available under
+the MIT License to provide others with a better understanding of our research and an
+opportunity to build upon it for their own work. We make no representations that the code
+works as intended or that we will provide support, address issues that are found, or accept
+pull requests. You are welcome to create your own fork and modify the code to suit your own
+modeling needs as permitted under the MIT License.
