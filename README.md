@@ -40,7 +40,7 @@ python3 -m pip install .[dev]
 Alternatively, IDM prebuilt environments are also available.
 
 ~~~
-python3 -m pip install fpq_observational_model
+python3 -m pip install fpg-observational-model
 ~~~
 
 ## Config Parameters
@@ -242,7 +242,7 @@ Use this workflow when you need to change something about the image itself — f
 
 3. Commit the changes to the repo, then run the GitHub Action **Build and Push Singularity Image**. This builds the new image and uploads it to COMPS, refreshing `docker/ObsModel_ubuntu.id` with the new asset id.
 
-   *(screenshot: GitHub Actions → Build and Push Singularity Image)*
+   ![alt text](push_image.png)
 
 4. Use the new COMPS asset id (`docker/ObsModel_ubuntu.id`) for future runs as in section 1.1.
 
@@ -253,9 +253,9 @@ Use this workflow when you change the ObsModel Python package itself and want th
 1. Make your code changes in this repo and bump the version in `pyproject.toml`:
    https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/pyproject.toml#L7
 
-2. Commit the changes, then run the GitHub Action **Promote package to production**. This is a manual run by design; it publishes the new version to the public PyPI server.
+2. Commit the changes, then run the GitHub Action **Test and deploy to pypi**. This is a manual run by design; it publishes the new version to the public PyPI server.
 
-   *(screenshot: GitHub Actions → Promote package to production)*
+   ![alt text](deploy_to_pypi.png)
 
 3. Update both image definition files to pin the newly released version:
 
