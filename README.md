@@ -261,13 +261,13 @@ Use this workflow when you change the ObsModel Python package itself and want th
 
    In `docker/Singularity.def`:
    ~~~
-   pip3 install --no-cache-dir "fpg-observational-model==1.0.2"
+   pip3 install --no-cache-dir "fpg-observational-model==1.0.3"
    ~~~
 
    In `docker/Dockerfile`:
    ~~~
    # Install the ObsModel package
-   RUN pip3 install --no-cache-dir "fpg-observational-model==1.0.2"
+   RUN pip3 install --no-cache-dir "fpg-observational-model==1.0.3"
    ~~~
 
 4. Rebuild the image by following section 2 so it includes the new ObsModel version.
