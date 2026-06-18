@@ -6,7 +6,6 @@ import math
 import ast
 from os.path import join, dirname, basename, exists
 from pathlib import Path
-from typing import List
 from ast import literal_eval
 
 
@@ -61,21 +60,21 @@ def calculate_infection_metrics(df):
     df = df.copy()
     
     # Step 2: Parse genome_ids and calculate COI
-    df["recursive_nids_parsed"] = df["recursive_nid"].apply(parse_list)
-    df["true_coi"] = df["recursive_nids_parsed"].apply(len)
-    df["effective_coi"] = df["recursive_nids_parsed"].apply(lambda x: len(set(x)))
+    df["original_nid"] = df["recursive_nid"].apply(parse_list)
+    df["true_coi"] = df["original_nid"].apply(len)
+    df["effective_coi"] = df["original_nid"].apply(lambda x: len(set(x)))
     # Keep only the single identifiable genome ids per infections
     # Consideration for future expansion, for effective COI > 1, keep density information for both to use in heterozygosity calculations
-    df["recursive_nids_parsed"] = df["recursive_nids_parsed"].apply(lambda x: list(set(x)))
+    df["recursive_nid"] = df["original_nid"].apply(lambda x: list(set(x)))
     
     # Step 3: Parse bite_ids for cotransmission
-    df["bite_ids_parsed"] = df["bite_ids"].apply(parse_list)
+    df["bite_ids"] = df["bite_ids"].apply(parse_list)
     
     # Step 4: Calculate cotransmission (cotx)
     def calc_cotx(row):
         if row['effective_coi'] == 1:
             return None  # NA for monogenomic
-        elif len(set(row['bite_ids_parsed'])) == 1:
+        elif len(set(row['bite_ids'])) == 1:
             return True  # Single bite event = cotransmission
         else:
             return False  # Multiple bite events = superinfection
@@ -119,7 +118,7 @@ def apply_emod_filters(infection_df,
         fever_value = 1 if fever_filter else 0
         df = df[df['fever_status'] == fever_value]
         fever_remaining = len(df)
-        print(f"    Fever filter: {original_size} → {fever_remaining} samples "
+        print(f"    Fever filter: {original_size} -> {fever_remaining} samples "
               f"({'fever cases' if fever_filter else 'non-fever cases'} only)")
     
     # Apply COI filter
@@ -147,7 +146,7 @@ def apply_emod_filters(infection_df,
             before_filter = len(df)
             df = df[df[column] == value]
             after_filter = len(df)
-            print(f"    Filter {column}={value}: {before_filter} → {after_filter} samples")
+            print(f"    Filter {column}={value}: {before_filter} -> {after_filter} samples")
     
     if len(df) == 0:
         print("    Warning: All data filtered out!")
@@ -571,7 +570,7 @@ def run_sampling_functions(infection_df, sampling_config, **kwargs):
     Returns:
       pd.DataFrame: DataFrame with sampling columns added
     """
-    
+
     method = sampling_config['method']
     n_samples_year = sampling_config['n_samples_year']
     replicates = sampling_config['replicates']
@@ -672,9 +671,12 @@ def run_sampling_model(input_df, config, intervention_start_month=None, verbose=
     
     # Add simulation_year column if it doesn't exist
     if 'simulation_year' not in df.columns and 'year' in df.columns:
-        df['simulation_year'] = df['year'].copy()    
+        df['simulation_year'] = df['year'].copy() 
     
-    
+    # Ensure continuous_month exists for time-based filtering    
+    if 'continuous_month' not in df.columns:
+        df = convert_month(df)  
+
     try:
         # Step 1: Apply hard filters
         if verbose:
@@ -688,8 +690,8 @@ def run_sampling_model(input_df, config, intervention_start_month=None, verbose=
 
         df_filtered['group_year'] = df_filtered['intervention_year'].copy() if 'intervention_year' in df_filtered.columns else df['simulation_year'].copy()
         if config['subpopulation_comparisons'].get('add_monthly'):
-            df_filtered['group_month'] = df_filtered['intervention_month'].copy() if 'intervention_month' in df_filtered.columns else df['continuous_month'].copy()
-        
+            df_filtered['group_month'] = df_filtered['intervention_month'].copy() if 'intervention_month' in df_filtered.columns else df['continuous_month'].copy() 
+
         # Step 2: Calculate infection metrics
         if verbose:
             print("\n=== Step 2: Calculate individual infection metrics ===")
@@ -701,7 +703,8 @@ def run_sampling_model(input_df, config, intervention_start_month=None, verbose=
         
         # Start with the base dataframe
         final_df = df_metrics.copy()
-        
+
+
         # Apply each sampling method
         for sampling_name, sampling_config in config['sampling_configs'].items():
             if verbose:
@@ -709,21 +712,30 @@ def run_sampling_model(input_df, config, intervention_start_month=None, verbose=
             
             # Run the sampling method
             sampled_df = run_sampling_functions(df_metrics, sampling_config)
+            # append used defined sampling name to sampling columns
+            sampled_df.columns = [f'{sampling_name}_{col}' if 'rep' in col else col for col in sampled_df.columns]
+
+            if config['subpopulation_comparisons'].get('add_monthly'):
+                sampled_df['month_rep0'] = 1 
             
             # Merge the sampling columns back to the main dataframe
-            sampling_columns = [col for col in sampled_df.columns 
-                              if sampling_name in col and 'rep' in col]
+            sampling_columns = [col for col in sampled_df.columns if sampling_name in col or 'rep' in col]
+            
             for col in sampling_columns:
                 final_df[col] = sampled_df[col]
         
+        if config['subpopulation_comparisons'].get('add_monthly'):
+            final_df['month_rep0'] = 1  # All infections included for monthly analysis
+            print("Added 'month_rep0' column for monthly comparisons with all  infections. ")
+        
+
         # Final summary
         if verbose:
             print(f"\n=== Final Results ===")
             print(f"Final dataframe shape: {final_df.shape}")
             
             # Show sampling column summary
-            sampling_cols = [col for col in final_df.columns 
-                            if any(method in col for method in ['random', 'seasonal', 'age']) and 'rep' in col]
+            sampling_cols = [col for col in final_df.columns if 'rep' in col]
             print(f"Sampling columns created: {sampling_cols}")
             
             for col in sampling_cols:

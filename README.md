@@ -2,22 +2,49 @@
 
 Documentation version 1.0 - September 2025
 
+You can find the latest version of this documentation at:
+
+https://emod.idmod.org/FPGObservationalModel/
+
 ## Overview 
 
-This repository contains scripts for EMOD's Full Parasite Genetics output to convert modeled results into recapitulative sampling for genomic surveillance. The observational model options allow for curated population sampling and then calculated genetic metrics for user specified combinations of samples, and optionally within epidemioligcally relevant nested populations within a group of samples. More options in sampling and metrics can be edited or expanded to match empirical data analyses. 
+This repository contains scripts for EMOD's Full Parasite Genetics output to convert
+modeled results into recapitulative sampling for genomic surveillance. The observational
+model options allow for curated population sampling and then calculated genetic metrics
+for user specified combinations of samples, and optionally within epidemioligcally
+relevant nested populations within a group of samples. More options in sampling and
+metrics can be edited or expanded to match empirical data analyses. 
+
+## Project status
+
+EMOD-Hub projects are provided as open source software under the MIT License for
+community use, research, and development.
+
+**Unless otherwise noted, these projects are no longer actively maintained or supported
+by IDM or the Gates Foundation.**
+
+Community contributions are welcome, and trusted collaborators may review and
+merge pull requests, but no guarantees are made regarding support, pull request
+review, security response, maintenance, or release timelines.
 
 ## Environment set-up
 
-This model requires Pytohn 3.9 to be compatible with IDM tskit. To set up the environment.
+This model requires Python 3.13 to be compatible with idm-tskit. To set up the environment.
 
 ~~~
 python3 -m venv fpg_env
 source fpg_env/bin/activate
-pip install -r requirements.txt
+python3 -m pip install .[dev]
+~~~
+
+Alternatively, IDM prebuilt environments are also available.
+
+~~~
+python3 -m pip install fpg-observational-model
 ~~~
 
 ## Config Parameters
-
+                                                                                                                                                               
 ### Hard filters 
 
 The hard filter parameter options apply blanket filters to the full set of reported EMOD infections. If you are interested in comparing the differences in genetic metrics from the total population for these individual groups, use the subpopulation options instead. 
@@ -37,7 +64,7 @@ Each config entry will match this format, with the available options:
 ~~~
     {user_provided_name:
         {
-        'method': ['random', 'seasonal', 'age'],
+        'method': ['random', 'seasonal'],
                 'n_samples_year': Int,
                 'replicates': 2,
                 'method_params': {
@@ -47,18 +74,14 @@ Each config entry will match this format, with the available options:
     }
 ~~~
 
-There are three broad method options for sampling:
+There are two broad method options for temporal sampling:
 1) 'random' - will sample N infections per year, tends to match seasonality cases. Can be further directed with the following 'method_params' options:
     - 'population_proportion': list, N populations. Used to sample from the source or sink only, equally, etc. Within population comparisons of genetic metrics can be specified below. Confirm the total number of samples per year * proportion reflects the minimum numbers of infections desired per population.
     - 'monogenomic_proportion': False or float for true (< 1). Will bias the sampling to include fewer or more monogenomic infections than may be the Bool modeled proportion. Used to compare the effect of metrics derived from monogenomic (e.g. unique proportion) or polygenomic samples (e.g. co-transmission proportion, Rh)
     - 'equal_monthly': Bool. Sample the same number of infections per month, regardless of seasonality. If the total number of samples requested is lower than the available, the remainder samples are not applied to other parts of the season. 
 
-2) 'seasonal': Will sample N infections per year, each in the wet or the dry season to compare temporal sampling effects. Currently, the model is set-up for the consistent seasonality in Senegal, must update for other simulation scenarios. If an intervention start time is provided, this sampling frame is unaffected - the simulation years and months are used to make sure sequential seasonal groupings. Can be further refined with following 'method_params' options:
+2) 'seasonal': Will sample N infections per year, each in the wet or the dry season to compare temporal sampling effects. Currently, the model is set-up for the consistent Sahelian seasonality, must update for other seasonality simulation scenarios. If an intervention start time is provided, this sampling frame is unaffected - the simulation years and months are used to make sure sequential seasonal groupings. Can be further refined with following 'method_params' options:
     - 'season': 'full' for all months in the wet or dry season or 'peak' for the 3 highest and lowest case months. Months for sampling are hardcoded for both full and peak season options.  
-
-3) 'age': Will sample N infections per year, but will direct which age individuals are presented most in the population regardless of age distribution specified in the model. Use for comparing sampling schemes based on age, e.g. mirror biased sampling such as school surveys. Can be further customized with following 'method_params' options:
-    - age_bins: List with the upper bound of each group. Default: [5, 15, 100]
-    - age_bin_labels: List containing names for each age grouping. Default: ['0-5yrs', '5-15yrs', '15+yrs']
 
 
 ### Subpopulation comparisons
@@ -66,8 +89,8 @@ There are three broad method options for sampling:
 Above options will calculate metrics for all samples in a population for each sampling method specified. Additionally, comparisons within subpopulations to compare with all infections in the sampled population are supported. This allows for the investigation of metrics that may be more sensitive within groups or smaller timescales.
 
  The subpopulation options supported include:
-- 'monthly':  Provide summary statistics by month in addition to year
-- 'populations':  Defined by the population node in EMOD
+- 'add_monthly':  Provide summary statistics by month for all infections. Excludes IBx and Rh relatedness calculations to reduce computational time and memory and real data calculations are not computed at this scale. This default can be changed in the run_time_summaries
+ function in unified_metric_calculations by using the complete nested dictionary instead of the nested dictionary ignoring the monthly groupings on infections. (May require further testing and debugging.)
 - 'polygenomic':  Is polygenomic = 1, else monogenomic = 0
 - 'symptomatic':  Is symptomatic = 1, else asymptomatic = 0
 - 'age_bins':  Default age bins: 0-5, 5-15, 15+
@@ -76,16 +99,18 @@ Above options will calculate metrics for all samples in a population for each sa
 
 This section defines with genetic metrics will be calculated for each set as boolean input. 
 
-    - 'cotransmission_proportion': From polygenomic infections, calculates how many contain genomes from a single mosquito biting event. 
-    - 'complexity_of_infection': Calculated both 'true_coi' for the number of genomes a person holds in an infection and the 'effective_coi' for the number of unique genomes a person hold in an infection as the upper detectable bound. 
-    - 'heterozygosity': For polygenomic infections, calculates how many positions contain more than one allele across genomes in an infection. Currently assumes all genotypes are captured, future plans include adding a density dependent weight to make this more realistic to specific strain parasitemia. 
-    - 'identity_by_descent': Compares the pairwise Hamming distance for all genomes, defined by the parents at the start of the simulation, in specified infections at the population and/or the individual level. 
-    - 'identity_by_state': Compares the pairwise Hamming distance for all genomes, defined by reference or alternative biallelic representations, in specified infections at the population and/or the individual level.
-    - 'individual_ibx': Specification on whether or not to provide within sample relatedness for polygenomic infections. Will be set to True if Rh is specified. 
-    - 'monogenomic_proportion': Calculates the proportion of monogenomic samples from the effective COI. 
-    - 'rh': Calculates Rh for polygenomic infections, matching [paper reference] with 200 unique monogenomic pairwise draws to determine Hmono and sample heterozygosity for Hpoly. 
-    - 'unique_genome_proportion': Calculates the proportion of genomes observed once in the sampled population, assuming phasing. 
-    - 'unique_mono_proportion': Calculated the proportion of genomes observed once in the sampled population, assuming from monogenomic samples only to avoid phasing assumptions. 
+- 'cotransmission_proportion': From polygenomic infections, calculates how many contain genomes from a single mosquito biting event. 
+- 'complexity_of_infection': Calculated both 'true_coi' for the number of genomes a person holds in an infection and the 'effective_coi' for the number of unique genomes a person hold in an infection as the upper detectable bound. 
+- 'heterozygosity': Calculated as 1 - (p^2 + q^2), where p is the reference and q is the alternative allele.  Currently assumes all genotypes are captured, future plans include adding a density dependent weight to make this more realistic to specific strain parasitemia. 
+- 'identity_by_descent': Compares the pairwise Hamming distance for all genomes, defined by the parents at the start of the simulation, in specified infections at the population and/or the individual level. 
+- 'identity_by_state': Compares the pairwise Hamming distance for all genomes, defined by reference or alternative biallelic representations, in specified infections at the population and/or the individual level.
+- 'individual_ibx': Specification on whether or not to provide within sample relatedness for polygenomic infections. Will be set to True if Rh is specified. 
+- 'monogenomic_proportion': Calculates the proportion of monogenomic samples from the effective COI. 
+- 'rh': Calculates Rh for polygenomic infections, matching [paper reference] with 200 unique monogenomic pairwise draws to determine H_mono and sample heterozygosity for H_poly. 
+- 'unique_genome_proportion': Calculates the proportion of genomes observed once in the sampled population, assuming phasing. 
+- 'unique_mono_proportion': Calculated the proportion of genomes observed once in the sampled population, assuming from monogenomic samples only to avoid phasing assumptions.
+
+**Note: Identity by state and descent calculations are optimized for the population level to account for clones to reduce similar pairwise calculations. To replicate pairwise comparison plots, users can manually output the unique genotype similarity matrix and the index order of each genotype in the process_nested_ibx function in the unified_metric_calculations script.** These files, when paired with the sample infection file, can allow for user flexibility to account for specific pairwise comparisons of the relatedness in a population. 
 
 
 ### Other
@@ -102,49 +127,54 @@ This section defines with genetic metrics will be calculated for each set as boo
 - 'cotx': Categorizes co-transmission events as infections with an effective COI > 2 with a single biting event (one unique value in 'bite_ids'). Monogenomic infections are excluded. 
 - '{sampling_name}_{n_samples}_rep{1...N replicates}': Columns specifying which sampling scheme the infection may be represented. Number of columns will match 'sampling' config options specified.
 - 'barcode_with_Ns': Barcode string for each infection. Polygenomic infections with any discordant alleles within any genome as assigned N at each discordant position.
-- 'heterozygosity': Proportion of barcode positions with an N.
-- '{ibd/ibs}_{pairwise_count,mean,median,std,min,q25,75,max}: Individual infection relatedness for polygenomic infections
-- {sampling_name}_{n_samples}_rep{1...N replicates}-individual_inferred_rh: Individual level Rh comparisons for each sampling scheme. Provided as individual columns in case infections are sampled across different sampling frames. 
+- 'heterozygosity': List of heterozygosity calculated as 1 - (p^2 + q^2), where p is the reference and q is the alternative allele for each variant position.
+- '{ibd/ibs}_{count,mean,std,min,25,50,75,max}: Individual infection relatedness for polygenomic infections
+- {sampling_name}_{sampling_method}_{n_samples}_rep{1...N replicates}-individual_inferred_rh: Individual level Rh comparisons for each sampling scheme. Provided as individual columns in case infections are sampled across different sampling frames. 
 
 
 ``{sim_id}_FPG_ModelSummaries.csv``: File containing the genetic metrics across columns and the years, season, and subpopulation comparisons as columns. Addition of summary statistic columns can vary based on user options for metric calculations. 
 
 - 'sampling_scheme': Grouping variable for the sampling scheme applied (matches 'sampling' options in config).
-- 'comparison_type': Identifies with sampling scheme groupings, such as yearly or seasonal groups, or specified subpopulations (matches 'subpopulation_comparison' options in config).
-- 'year_group': Specifies the year (either simulation year or intervention shifted year) or the seasonal grouping bin for summary statistics.
-- 'sub_group': Sepcifies the additional groupings within subpopulations, e.g. whether True/False for polygenomic or symptomatic.  
+- 'time_group': The time window used for grouping, either 'group_month', 'group_year', or 'group_season'. 
+- 'time_value': Specifies the year (either simulation year or intervention shifted year), seasonal grouping bin, or month for summary statistics.
+- 'comparison_type': Identifies with sampling scheme groupings, such as 'all' infections in a time period, by subpopulations such as 'polygenomic' or 'symptomatic'.
+- 'comparison_group': The specific group identified for 'comparison_type', e.g. whether True/False for polygenomic or symptomatic. 
 - 'n_infections': Counts for the number of infections in each sampling scheme, for each year and subpopulation grouping specified in the observational model run. These are the actual number of infections that were available in the report by grouping and may be lower than the specified targets.
-- '{true/effective}_poly_coi_count': The number of infections per grouping that have a COI > 2. True is the modeled umber of genomes tracked, which effective is the number of unique and detectable genomes in an infection.
-- '{true/effective_poly_coi_prop}': The proportion of infections per grouping that have a COI > 2. Calculated as '{true/effective}_poly_coi_count'/n_infections.
-- 'all_genomes_total_count': The total number of genomes identified in all infections per grouping, assuming full phasing of all infection genomes. 
-- 'all_genomes_unique_count': The total number of genomes observed once in all genomes from infections per grouping, assuming full phasing of all infection genomes.
-- 'all_genomes_ids_unique_prop': The proportion of unique genomes in all genomes from infections per grouping, assuming full phasing of all infection genomes. Calculated as 'all_genomes_unique_count'/'all_genomes_total_count'.
-- 'mono_genomes_total_count': The total number of genomes identified in all infections per grouping, measured only from monogenomic infections that are inherently phased. 
-- 'mono_genomes_unique_count': The total number of genomes observed once in all genomes from infections per grouping, measured only from monogenomic infections that are inherently phased.
-- 'mono_genomes_ids_unique_prop': The proportion of unique genomes in all genomes from infections per grouping, measured only from monogenomic infections that are inherently phased. Calculated as 'mono_genomes_unique_count'/'mono_genomes_total_count'.
+- '{true/effective/genotype}_poly_coi_count': The number of infections per grouping that have a COI > 2. True is the modeled number of genomes tracked, which effective is the number of unique and detectable genomes in an infection by ancestry, and genome is the number of unique detectable genomes in an infection by bi-allelic representation.
+- '{true/effective/genotype_poly_coi_prop}': The proportion of infections per grouping that have a COI > 2. Calculated as '{true/effective/genotype}_poly_coi_count'/n_infections.
+- '{effective/genotype}_all_genomes_total_count': The total number of genomes identified in all infections per grouping, assuming full phasing of all infection genomes. 
+- '{effective/genotype}_all_genomes_unique_count': The total number of genomes observed once in all genomes from infections per grouping, assuming full phasing of all infection genomes.
+- '{effective/genotype}_all_genomes_ids_unique_prop': The proportion of unique genomes in all genomes from infections per grouping, assuming full phasing of all infection genomes. Calculated as 'all_genomes_unique_count'/'all_genomes_total_count'.
+- '{effective/genotype}_mono_genomes_total_count': The total number of genomes identified in all infections per grouping, measured only from monogenomic infections that are inherently phased. 
+- '{effective/genotype}_mono_genomes_unique_count': The total number of genomes observed once in all genomes from infections per grouping, measured only from monogenomic infections that are inherently phased.
+- '{effective/genotype}_mono_genomes_ids_unique_prop': The proportion of unique genomes in all genomes from infections per grouping, measured only from monogenomic infections that are inherently phased. Calculated as 'mono_genomes_unique_count'/'mono_genomes_total_count'.
 - 'cotransmission_count': The number of infections per grouping with a COI > 2 and from a single mosquito biting event. 
 - 'cotransmission_prop': The proportion of co-transmission infections within polygenomic infections. Calculated as 'cotransmission_count'/'effective_poly_coi_count'.
-- '{true/effective}_coi_{mean,median,std,min,q25,75,max}': Full summary statistics for the COI distribution of infections in a grouping. 
-- '{ibd/ibs}_{pairwise_count,mean,median,std,min,q25,75,max}': Full population level summary statistics for the COI distribution of infections in a grouping.
+- '{true/effective/genotype}_coi_{mean,median,std,q25,75,min,max}': Full summary statistics for the COI distribution of infections in a grouping. 
+- '{pop/ind}-{ibd/ibs}_{pairwise_count,mean,median,std,q25,75,min,max}': Full population level summary statistics for the relatedness distribution of infections in a grouping. 'Pop' prefix denotes relatedness from all genomes within and between individuals in a grouping, while 'ind' prefix denotes relatedness within individuals with a polygenomic infection but summarized across polygenomic infections in a grouping. 
+- 'allele_frequencies': List of the alternative allele frequency in infections for all phased genomes from infections per grouping.
+- 'heterozygosity_per_position': Heterozygosity calculated for all phased genomes from infections per grouping. Assumption that each allele in the infection is proportional to the the number of strains containing that genotype (i.e. each genome produces a single read count per infection for each allele, and total read counts are the sum of the genomes in the infection). 
+- 'fws_{mean,median,std,min,q25,75,max}': Summary statistics for within host diversity (F_ws) according to the method devised in  Manske et.al, 2012. 
 - 'rh_inferred_{mean,median,std}': Summary statistics for the inferred Rh from polygenomic infections, bootstrapping the monogenomic Rh. 
 
 
 
-``{sim_id}-{ibd/ibs}_distributions.json``: To avoid large pairwise matrices s output, to further investigate population level IBs distributions one could use the JSON file with the IBx calculated value as the key up to two decimal places and the number of pairwise counts as a the value. It matches the output CSV in matching sampling, comparison_types, and subpopulations. 
+``{sim_id}-{ibd/ibs}_distributions.json``: To avoid large pairwise matrices s output, to further investigate population level IBs distributions one could use the JSON file with the IBx calculated value as the key up to two decimal places and the number of pairwise counts as a the value. It matches the output CSV in matching sampling, comparison_types and groups by population.
 
 ~~~
-  {
+  {"population_N": {
       "user_specified_name": { # "sampling_scheme 
-          "population": { # comparision_type Like group_year, season_bin, population polygenomic, etc.
+          "symptomatic": { # comparision_type Like group_year, season_bin, population polygenomic, etc.
               "(2, 0)": {       # For subpopulations, the key here can be tuple, with the first item is the group_year, and the second is the group identifier. For example, this is for year 2, population 0
                   "0.5": 54,
                   "0.7": 41,
                   "0.9": 7,
                   "1": 4
-              }
+                }
 
-          }
-      }
+            }
+        }
+     }
   }
 ~~~    
 
@@ -156,8 +186,101 @@ In the the absence of the mapping file, one can look for the directories belongi
 
 ~~~
 # Example pull of data
-EXPERIMENT_NAME="/mnt/calculon2/jsuresh/output/maka fpg 10k - 6yr - strong ITNs in_20250522_195001/"
+EXPERIMENT_NAME="/mnt/calculon2/{user}/output/{emod_experiment_id}"
 OUTPUT_FILE="experiment_mapping.csv"
 
 { echo "output_name,input_dir"; find "$EXPERIMENT_NAME" -name "output" -type d | sed 's|.*/\([0-9a-f]\{8\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{4\}-[0-9a-f]\{12\}\)/output$|\1,"\0"|'; } > "$OUTPUT_FILE"
 ~~~
+
+## IDM Developer Notes
+
+The following workflows cover running the ObsModel with EMOD on COMPS, updating the Singularity/Docker image when dependencies change, and releasing a new version of the ObsModel Python package.
+
+### 1. Run the ObsModel with EMOD
+
+The ObsModel runs as a post-process step on COMPS, inside the same Singularity image used to run EMOD.
+
+**1.1 Use the SIF that includes the ObsModel.**
+
+The latest COMPS asset id file for the Singularity image (which runs EMOD and has the ObsModel pre-installed) lives at:
+
+https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/docker/ObsModel_ubuntu.id
+
+Pass it to your `EMODTask` so COMPS uses this image:
+
+~~~
+task.set_sif(path_to_sif="path/to/ObsModel_ubuntu.id")
+~~~
+
+**1.2 Enable FPG outputs in EMOD.**
+
+The ObsModel reads the FPG report produced by EMOD. Make sure your emodpy script adds the report so the required input files are written:
+
+~~~
+add_report_fpg_output(task, ...)
+~~~
+
+**1.3 Wire up post-processing.**
+
+Point the `EMODTask` to the provided `dtk_post_process.py`, which invokes the ObsModel against the FPG output once the simulation finishes:
+
+https://github.com/EMOD-Hub/emodpy-malaria/blob/main/examples-container/fpg_example/python_scripts/dtk_post_process.py
+
+**1.4 Submit and verify.**
+
+Submit the experiment as usual. When it completes, confirm the post-process step ran and that the ObsModel output files (see [Output files](#output-files) above) are present in each simulation's output directory.
+
+### 2. Update the Image (dependency changes)
+
+Use this workflow when you need to change something about the image itself — for example, upgrading a Python dependency, adding a system package, or changing the base image.
+
+1. Edit the Singularity definition file:
+   https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/docker/Singularity.def
+
+2. Keep the Dockerfile in sync so contributors can develop locally:
+   https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/docker/Dockerfile
+
+3. Commit the changes to the repo, then run the GitHub Action **Build and Push Singularity Image**. This builds the new image and uploads it to COMPS, refreshing `docker/ObsModel_ubuntu.id` with the new asset id.
+
+   ![alt text](push_image.png)
+
+4. Use the new COMPS asset id (`docker/ObsModel_ubuntu.id`) for future runs as in section 1.1.
+
+### 3. Update the ObsModel Package (code changes)
+
+Use this workflow when you change the ObsModel Python package itself and want those changes available in the image used by EMOD.
+
+1. Make your code changes in this repo and bump the version in `pyproject.toml`:
+   https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/pyproject.toml#L7
+
+2. Commit the changes, then run the GitHub Action **Test and deploy to pypi**. This is a manual run by design; it publishes the new version to the public PyPI server.
+
+   ![alt text](deploy_to_pypi.png)
+
+3. Update both image definition files to pin the newly released version:
+
+   In `docker/Singularity.def`:
+   ~~~
+   pip3 install --no-cache-dir "fpg-observational-model==1.0.3"
+   ~~~
+
+   In `docker/Dockerfile`:
+   ~~~
+   # Install the ObsModel package
+   RUN pip3 install --no-cache-dir "fpg-observational-model==1.0.3"
+   ~~~
+
+4. Rebuild the image by following section 2 so it includes the new ObsModel version.
+
+5. Use the new image's asset id in your EMOD tasks as described in section 1.
+
+
+## Disclaimer
+
+The code in this repository was developed by IDM and other collaborators to support our
+joint research on flexible agent-based modeling. We've made it publicly available under
+the MIT License to provide others with a better understanding of our research and an
+opportunity to build upon it for their own work. We make no representations that the code
+works as intended or that we will provide support, address issues that are found, or accept
+pull requests. You are welcome to create your own fork and modify the code to suit your own
+modeling needs as permitted under the MIT License.

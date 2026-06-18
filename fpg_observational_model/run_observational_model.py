@@ -8,8 +8,11 @@ import inspect
 import json
 from os.path import basename
 
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from fpg_observational_model.unified_sampling import run_sampling_model
-from fpg_observational_model.unified_metric_calculations import register_matrix, run_time_summaries, generate_het_barcode
+from fpg_observational_model.unified_metric_calculations import assign_unique_genome_ids, register_matrix, run_time_summaries, generate_het_barcode
 
 
 #####################################################################################
@@ -34,20 +37,14 @@ def get_default_config():
                     'monogenomic_proportion': False, # Set to False if sampling randomly 
                     'equal_monthly': False}
             },
-            'seasonal': {
-                'method': 'seasonal',
-                'n_samples_year': 100,
-                'replicates': 2,
-                'method_params': {
-                    'season': 'full', # Options: full or peak; currently hardcoded to match Senegal's seasonality; update for other scenarios in unified_sampling.py
-                }
-            },
-            # 'age': { # Example of how to set-up a sampling scheme based on age, to mirror biased sampling such as school surveys and health facility comparisons. 
-            #     'method': 'age',
-            #     'n_samples_year': 15,
-            #     'replicates': 1
-            # }
-            
+            # 'seasonal': {
+            #     'method': 'seasonal',
+            #     'n_samples_year': 100,
+            #     'replicates': 1,
+            #     'method_params': {
+            #         'season': 'full', # Options: full or peak; currently hardcoded to match Senegal's seasonality; update for other scenarios in unified_sampling.py
+            #     }
+            # } 
         },
         'metrics': {
             'cotransmission_proportion': True,
@@ -56,13 +53,13 @@ def get_default_config():
             'identity_by_descent': False,
             'identity_by_state': True,
             'individual_ibx': True,
+            'fws': True,
             'monogenomic_proportion': True,
             'rh': True,
             'unique_genome_proportion': True # Will calculate both the proportion of unique genomes in the sampled infections to replicate phasing and from monogenomic samples with an effective COI of 1  only to match barcode limits.
         },
         'subpopulation_comparisons': { # Supported for yearly and seasonal temporal sampling schemes, not age-based sampling. 
-            'add_monthly': False,  # Whether to add monthly comparisons within each year
-            'populations': False,  # Defined by the population node in EMOD
+            'add_monthly': False,  # Whether to add monthly comparisons in addition to yearly comparisons for temporal sampling schemes
             'polygenomic': True,  # Is polygenomic = 1, else monogenomic = 0
             'symptomatic': False,  # Is symptomatic = 1, else asymptomatic = 0
             'age_bins': False     # Default age bins: 0-5, 5-15, 15+
@@ -181,7 +178,8 @@ def update_matrix_indices(sample_df):
     
     # Parse the recursive_nid column
     df['original_nid'] = df['recursive_nid'].copy()
-    df['original_nid'] = df['original_nid'].apply(ast.literal_eval)
+    df['original_nid'] = df['original_nid'].apply(
+    lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
 
     # Step 1: Get all unique recursive_nid values across all rows
     all_nids = []
@@ -306,14 +304,13 @@ def run_observational_model(
         return unknown_keys
 
     # Helper function to deep merge dictionaries
-    def deep_merge(default_dict, override_dict):
-        """Recursively merge override_dict into default_dict, preserving defaults for missing keys."""
-        result = default_dict.copy()
-        for key, value in override_dict.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = deep_merge(result[key], value)
+    def deep_merge(base, override):
+        result = base.copy()
+        for k, v in override.items():
+            if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+                result[k] = deep_merge(result[k], v)  # recurse
             else:
-                result[key] = value
+                result[k] = v
         return result
 
     # Start with default config
@@ -380,56 +377,68 @@ def run_observational_model(
             print(f"Error: {infection_df_path} not found. Loading test data.")
         infection_df = pd.read_csv('test_data/test_fpg_infections.csv')
 
-        # Run sampling model
+    # Run sampling model
+    print(f"Config paramters for sampling model:\n {config}")    
     sample_df = run_sampling_model(
         input_df=infection_df,
         config=config,
         intervention_start_month=config['intervention_start_month']
     )
     sample_df = extract_sampled_infections(sample_df)
-    sample_df = update_matrix_indices(sample_df)
-
+    sample_df['original_nid'] = sample_df['recursive_nid'].copy()
+    
+    # NOTE: Commented out to preserve original_nid without changing recursive_nid. In theory this updated index can be used to read in smaller genotype matrix below of infections sampled across all sampling schemes. Will require changes to functions that use the original_nid to map genomes to infections. 
+    # sample_df = update_matrix_indices(sample_df)
+    # matrix_indices = sample_df['recursive_nid'].tolist()
+ 
     # Identify additional file for metric calculations - mainly IBx
     # Memory-map the genotype files (doesn't load to RAM) for access later
     user_specified_ibx = []
     ibd_matrix = None
     ibs_matrix = None
+    # Optional - included if need to filter out non-variant tracked sites, i.e. immunity markers or drugR for calculating genetic metrics only on neutral variant sites.
+    variant_indices = None
+    # variant_indices = []
 
     if config['metrics']['identity_by_descent']:
         user_specified_ibx.append('ibd')
         root_matrix_path = f'{emod_output_path}/roots.npy'
         if os.path.exists(root_matrix_path):
             ibd_matrix = load_matrix_safely(root_matrix_path)
+            if variant_indices is not None and len(variant_indices) > 0:
+                ibd_matrix = ibd_matrix[:, variant_indices]
             register_matrix('ibd_matrix', ibd_matrix)
         else:
             print(f"Warning: {root_matrix_path} not found, IBD calculations will be skipped")
 
-    if config['metrics']['identity_by_state'] or config['metrics'].get('heterozygosity', True) or config['metrics'][
-        'rh']:
-        user_specified_ibx.append('ibs')
+    if config['metrics'].get('heterozygosity', True):
         genotype_matrix_path = f'{emod_output_path}/variants.npy'
-        print(genotype_matrix_path)
+     
         if os.path.exists(genotype_matrix_path):
             ibs_matrix = load_matrix_safely(genotype_matrix_path)
+            if variant_indices is not None and len(variant_indices) > 0:
+                ibs_matrix = ibs_matrix[:, variant_indices]
         else:
             print(f"Error: {genotype_matrix_path} not found. Loading test data.")
-            ibs_matrix = np.load("test_data/test_variants.npy", mmap_mode='r')
+            ibs_matrix = np.load("../test_data/variants.npy", mmap_mode='r')    
         register_matrix('ibs_matrix', ibs_matrix)
+
+        if config['metrics']['identity_by_state'] or config['metrics'][
+        'rh']:
+            user_specified_ibx.append('ibs')
 
     if config['metrics'].get('heterozygosity', True) and ibs_matrix is not None:
         # Generate barcode with Ns for heterozygosity calculations
-        sample_df['barcode_with_Ns'] = sample_df.apply(
-            lambda row: generate_het_barcode(ibs_matrix, row['recursive_nid']), axis=1)
+        sample_df['original_nid'] = sample_df['original_nid'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+        sample_df[['genotype_coi', 'barcode_with_Ns', 'heterozygosity']] = sample_df.apply(lambda row: generate_het_barcode(ibs_matrix, row['original_nid']), axis=1, result_type='expand')
 
-        sample_df['heterozygosity'] = sample_df['barcode_with_Ns'].apply(
-            lambda x: x.count('N') / len(x) if isinstance(x, list) and len(x) > 0 else 0
-        )
+        sample_df = assign_unique_genome_ids(ibs_matrix, sample_df, genome_id_col='original_nid', output_col='genotype_nid')
 
     # Run metric calculations
     all_summaries, all_infection_ibx, all_ibx_dist_dict = run_time_summaries(
-        sample_df,
-        subpop_config=config['subpopulation_comparisons'],
-        user_ibx_categories=user_specified_ibx
+         sample_df,
+         subpop_config=config['subpopulation_comparisons'],
+         user_ibx_categories=user_specified_ibx
     )
 
     # Save outputs
@@ -444,7 +453,11 @@ def run_observational_model(
     sample_output_filepath = f'{output_path}/{sim_name}_FPG_SampledInfections.csv'
     # Merge in individual IBx results for sampled infections
     if not all_infection_ibx.empty:
-        sample_df = sample_df.merge(all_infection_ibx, on='infIndex', how='left')
+        # remove the monthly samples if in the df to have a smaller sampling only infection file
+        if 'month_rep0' in sample_df.columns:
+            sample_df = sample_df.drop(columns=['month_rep0'])
+            sample_df = extract_sampled_infections(sample_df)
+        sample_df = sample_df.merge(all_infection_ibx, on='infIndex', how='inner')
     sample_df.to_csv(sample_output_filepath, index=False)
 
     save_ibx_distributions = True
@@ -464,53 +477,8 @@ def run_observational_model(
 
 
 #####################################################################################
-# Parallelizable wrapper function
+# Single run test
 #####################################################################################
-def process_file(file_row, output_summary_dir, config_path=None, verbose=False):
-    """
-    Process a single file for parallel execution.
-    
-    Parameters:
-        file_row: pandas Series or dict with 'output_name' and 'input_dir' columns
-        output_summary_dir: Directory to save outputs
-        config_path: Path to config file (optional)
-        verbose: Whether to print verbose output
-        
-    Returns:
-        str: Name of processed simulation
-    """
-    try:
-        # Extract information from the row
-        sim_name = file_row['output_name']
-        emod_output_path = file_row['input_dir']
-        
-        # Use default config if not specified
-        if config_path is None or not os.path.exists(config_path):
-            config_path = ""  # Will trigger default config usage
-            
-        # Create output directory for this simulation
-        output_path = os.path.join(output_summary_dir, sim_name)
-        
-        # Run the observational model
-        result = run_observational_model(
-            sim_name=sim_name,
-            emod_output_path=emod_output_path,
-            config_path=config_path,
-            output_path=output_path,
-            verbose=verbose
-        )
-        
-        return f"SUCCESS: {sim_name}"
-        
-    except Exception as e:
-        error_msg = f"ERROR processing {file_row.get('output_name', 'unknown')}: {str(e)}"
-        if verbose:
-            import traceback
-            print(f"{error_msg}\n{traceback.format_exc()}")
-        return error_msg
-
-
-# Single file test
 # Single file test
 if __name__ == "__main__":
     import argparse
@@ -556,3 +524,6 @@ if __name__ == "__main__":
         if args.verbose:
             print("\nFull traceback:")
             print(traceback.format_exc())
+
+
+            
