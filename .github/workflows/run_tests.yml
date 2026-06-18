@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: [3.9]
+        python-version: [3.13]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
       - name: Install packages
         run: |
           python3 -m pip install --upgrade pip
-          python3 -m pip install .[dev] --index-url=https://packages.idmod.org/api/pypi/pypi-production/simple --extra-index-url=https://pypi.org/simple
+          python3 -m pip install .[dev]
       - name: Run unit tests
         run: |
           cd tests

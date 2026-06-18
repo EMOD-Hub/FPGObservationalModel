@@ -29,18 +29,18 @@ review, security response, maintenance, or release timelines.
 
 ## Environment set-up
 
-This model requires Python 3.9 to be compatible with IDM tskit. To set up the environment.
+This model requires Python 3.13 to be compatible with idm-tskit. To set up the environment.
 
 ~~~
 python3 -m venv fpg_env
 source fpg_env/bin/activate
-pip install -r requirements.txt
+python3 -m pip install .[dev]
 ~~~
 
 Alternatively, IDM prebuilt environments are also available.
 
 ~~~
-python3 -m pip install .[dev]
+python3 -m pip install fpg-observational-model
 ~~~
 
 ## Config Parameters
@@ -194,18 +194,85 @@ OUTPUT_FILE="experiment_mapping.csv"
 
 ## IDM Developer Notes
 
-If updating the repository to run the observational model on COMPs, these are the steps to set up the Singularity image.
+The following workflows cover running the ObsModel with EMOD on COMPS, updating the Singularity/Docker image when dependencies change, and releasing a new version of the ObsModel Python package.
 
-1) Update the following files with a new `1.0.0..dev{n+1}` version number:
-    - docker/Dockerfile: Line 52
-    - docker/Singularity: Line 61
-    - pyproject.toml: Line 7
+### 1. Run the ObsModel with EMOD
 
-2) After committing/merging to EMOD-Hub branch without errors, click on Actions -> Promote package to production and match the new version name when prompted.
+The ObsModel runs as a post-process step on COMPS, inside the same Singularity image used to run EMOD.
 
-3) Actions -> Build and push similarity image. Keep all the same information form COMPs or specify file locations as needed. 
+**1.1 Use the SIF that includes the ObsModel.**
 
-4) Pass the docker/ObsModel_rocky.id to emodpy-malaria files to run with new simulations. 
+The latest COMPS asset id file for the Singularity image (which runs EMOD and has the ObsModel pre-installed) lives at:
+
+https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/docker/ObsModel_ubuntu.id
+
+Pass it to your `EMODTask` so COMPS uses this image:
+
+~~~
+task.set_sif(path_to_sif="path/to/ObsModel_ubuntu.id")
+~~~
+
+**1.2 Enable FPG outputs in EMOD.**
+
+The ObsModel reads the FPG report produced by EMOD. Make sure your emodpy script adds the report so the required input files are written:
+
+~~~
+add_report_fpg_output(task, ...)
+~~~
+
+**1.3 Wire up post-processing.**
+
+Point the `EMODTask` to the provided `dtk_post_process.py`, which invokes the ObsModel against the FPG output once the simulation finishes:
+
+https://github.com/EMOD-Hub/emodpy-malaria/blob/main/examples-container/fpg_example/python_scripts/dtk_post_process.py
+
+**1.4 Submit and verify.**
+
+Submit the experiment as usual. When it completes, confirm the post-process step ran and that the ObsModel output files (see [Output files](#output-files) above) are present in each simulation's output directory.
+
+### 2. Update the Image (dependency changes)
+
+Use this workflow when you need to change something about the image itself — for example, upgrading a Python dependency, adding a system package, or changing the base image.
+
+1. Edit the Singularity definition file:
+   https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/docker/Singularity.def
+
+2. Keep the Dockerfile in sync so contributors can develop locally:
+   https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/docker/Dockerfile
+
+3. Commit the changes to the repo, then run the GitHub Action **Build and Push Singularity Image**. This builds the new image and uploads it to COMPS, refreshing `docker/ObsModel_ubuntu.id` with the new asset id.
+
+   ![alt text](push_image.png)
+
+4. Use the new COMPS asset id (`docker/ObsModel_ubuntu.id`) for future runs as in section 1.1.
+
+### 3. Update the ObsModel Package (code changes)
+
+Use this workflow when you change the ObsModel Python package itself and want those changes available in the image used by EMOD.
+
+1. Make your code changes in this repo and bump the version in `pyproject.toml`:
+   https://github.com/EMOD-Hub/FPGObservationalModel/blob/py313/pyproject.toml#L7
+
+2. Commit the changes, then run the GitHub Action **Test and deploy to pypi**. This is a manual run by design; it publishes the new version to the public PyPI server.
+
+   ![alt text](deploy_to_pypi.png)
+
+3. Update both image definition files to pin the newly released version:
+
+   In `docker/Singularity.def`:
+   ~~~
+   pip3 install --no-cache-dir "fpg-observational-model==1.0.2"
+   ~~~
+
+   In `docker/Dockerfile`:
+   ~~~
+   # Install the ObsModel package
+   RUN pip3 install --no-cache-dir "fpg-observational-model==1.0.2"
+   ~~~
+
+4. Rebuild the image by following section 2 so it includes the new ObsModel version.
+
+5. Use the new image's asset id in your EMOD tasks as described in section 1.
 
 
 ## Disclaimer

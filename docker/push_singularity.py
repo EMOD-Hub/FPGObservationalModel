@@ -7,7 +7,7 @@ import os
 import re
 
 def make_asset(def_file_name: str = 'Singularity.def', sif_file_name: str = None,
-               comps_url: str = 'https://comps.idmod.org', comps_env: str = 'Calculon', os_name: str = 'rocky'
+               comps_url: str = 'https://comps.idmod.org', comps_env: str = 'Calculon', os_name: str = 'ubuntu'
                ) -> None:
     """
     Build the EMOD observation model singularity image from definition file or singularity file on COMPS and save the
@@ -18,7 +18,7 @@ def make_asset(def_file_name: str = 'Singularity.def', sif_file_name: str = None
         sif_file_name (str): Path to the Singularity image file(.sif), default is None which means build from def file.
         comps_url (str): COMPS endpoint URL, default is 'https://comps.idmod.org'.
         comps_env (str): COMPS environment name to use, default is 'Calculon'.
-        os_name (str): Operating system name for the image, default is 'rocky'.
+        os_name (str): Operating system name for the image, default is 'ubuntu'.
     """
     # Prepare the platform
     plat_obj = Platform(type='COMPS',
@@ -100,8 +100,8 @@ if __name__ == "__main__":
                         help='COMPS endpoint URL. Default is https://comps.idmod.org')
     parser.add_argument('--comps_env', type=str, default='Calculon',
                         help='COMPS environment name to use. Default is Calculon')
-    parser.add_argument('--os_name', type=str, default='rocky',
-                        help='Operating system name for the image. Default is rocky')
+    parser.add_argument('--os_name', type=str, default='ubuntu',
+                        help='Operating system name for the image. Default is ubuntu')
     args = parser.parse_args()
     if args.file.endswith('.def'):
         def_file = args.file
